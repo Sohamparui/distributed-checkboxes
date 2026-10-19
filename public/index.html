@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkboxes</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h1>
+        checkboxes
+    </h1>
+    <div id="container"></div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const container = document.getElementById('container');
+
+        socket.on('server:init', (data) => {
+            if (!data || !Array.isArray(data.checkboxes)) return;
+            container.innerHTML = '';
+            data.checkboxes.forEach((serverValue, index) => {
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.id = `checkbox-${index}`;
+                input.checked = Boolean(serverValue);
+
+                input.addEventListener('change', (event) => {
+                    const checked = event.target.checked;
+                    socket.emit('client:checkbox:change', { index, checked });
+                });
+                container.appendChild(input);
+            });
+        });
+
+        socket.on('server:checkbox:change', (data) => {
+            if (!data) return;
+            const { index, checked } = data;
+            const input = document.getElementById(`checkbox-${index}`);
+            if (input) {
+                input.checked = checked;
+            }
+        });
+
+        let toastTimeout;
+        socket.on('client:rate-limit-error', ({ message, index, revertTo }) => {
+            const input = document.getElementById(`checkbox-${index}`);
+            if (input) {
+                input.checked = revertTo;
+                input.classList.remove('checkbox-shake');
+                void input.offsetWidth; 
+                input.classList.add('checkbox-shake');
+            }
+
+            showToast(message);
+        });
+
+        function showToast(message) {
+            let toastContainer = document.getElementById('toast-container');
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.id = 'toast-container';
+                toastContainer.className = 'toast-container';
+                document.body.appendChild(toastContainer);
+            }
+
+            toastContainer.innerHTML = '';
+            clearTimeout(toastTimeout);
+
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerHTML = `
+                <div class="toast-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                </div>
+                <span class="toast-message">${message}</span>
+            `;
+
+            toastContainer.appendChild(toast);
+
+            toastTimeout = setTimeout(() => {
+                toast.classList.add('toast-fadeout');
+                setTimeout(() => toast.remove(), 250);
+            }, 2500);
+        }
+    </script>
+</body>
+</html>
